@@ -1,0 +1,149 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: DataChef-Assignment
+
+Parameters:
+  # HostedZoneIdParam:
+  #   Type: String
+  #   Description: Hosted Zone ID
+  # SFTPHostnameParam:
+  #   Type: String
+  #   Description: Hostname for the SFTP Server
+  SSHKey:
+    Type: String
+    Default: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDacOt4FGOeUpLZfLxrrS9C2ZwG6rq1WKGjRAw2M+MY4HM7imrU3Q1ZRGpGnz2qYwi/EST47c1fEFAm1UbCeOvgY7YNTtiLFVJaN9LyhNbRgsACi4tjoB2qboxbmPqFR81MzfuveauWBNOE86D5naj0lFC9k4MaAxBArF3wALrDDT8yagAXHzKalbvZ+vNQzyZRaMCusJK1O+KnhHqX5/740fV2ADe3nVoiG8BOfPtcfMkG2pyFT1Xdxspu7NTUvewq9fU2rW7sd7Aiytta4J2OjdTm8E9tAR7BhHt/PB+qTKzHZOROyeH0OrB7FGn1PKL0u59Yzsy4rlU8afXKI1vL Generated-by-Nova
+  UserName:
+    Type: String
+    Description: Username
+  BucketName:
+    Type: String
+    Default: datachefassignment2020
+    Description: Bucket Name
+
+Resources:
+  SFTPServer:
+    Type: AWS::Transfer::Server
+    Properties:
+      EndpointType: PUBLIC
+      # LoggingRole:
+      Protocols:
+        - SFTP
+      Tags:
+        - Key: Owner
+          Value: pgheadi
+  #
+  # SFTPServerDNSRecord:
+  #   Type: AWS::Route53::RecordSet
+  #   Properties:
+  #     Name: !Ref SFTPHostnameParam
+  #     HostedZoneId: !Ref HostedZoneIdParam
+  #     Type: CNAME
+  #     Comment: SFTP Transfer custom hostname
+  #     TTL: 300
+  #     ResourceRecords:
+  #       - !Sub ${SFTPServer.ServerId}.server.transfer.${AWS::Region}.amazonaws.com
+
+
+  SFTPServerS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Owner
+          Value: pgheadi
+
+  SFTPUserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - transfer.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: S3FullAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListAllMyBuckets
+                  - s3:GetBucketLocation
+                Resource: "*"
+        - PolicyName: AllowListingOfUserFolder
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt SFTPServerS3Bucket.Arn
+        - PolicyName: HomeDirObjectAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                Resource: !Sub "${SFTPServerS3Bucket.Arn}/*"
+
+  TestUser:
+    Type: AWS::Transfer::User
+    Properties:
+      ServerId: !GetAtt SFTPServer.ServerId
+      UserName: !Ref UserName
+      HomeDirectory: !Sub "/${SFTPServerS3Bucket}/home/${UserName}"
+      Policy: >
+          {
+            "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "AllowListingOfUserFolder",
+                            "Effect": "Allow",
+                            "Action": "s3:ListBucket",
+                            "Resource": "arn:aws:s3:::${transfer:HomeBucket}",
+                            "Condition": {
+                                "StringLike": {
+                                    "s3:prefix": [
+                                        "home/${transfer:UserName}/*",
+                                        "home/${transfer:UserName}"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "Sid": "HomeDirObjectAccess",
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:PutObject",
+                                "s3:GetObject",
+                                "s3:GetObjectVersion",
+                                "s3:DeleteObject",
+                                "s3:DeleteObjectVersion"
+                            ],
+                            "Resource": "arn:aws:s3:::${transfer:HomeDirectory}*"
+                        }
+                    ]
+            }
+      Role: !GetAtt SFTPUserRole.Arn
+      SshPublicKeys:
+        - !Ref SSHKey
+      Tags:
+        - Key: Application
+          Value: DataChef-Assignment
+
