@@ -2,19 +2,20 @@ provider "aws" {
   region = "eu-west-1"
 }
 
-resource "aws_cloudwatch_log_group" "datachef" {
-  name = "datachef"
-
-  tags = local.tags
-}
-
 
 locals {
   # Common tags to be assigned to all resources
     username = "pooria"
+    publickey = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqkU+hdSPbod6Qs0uD3+fNzE8kUdQ8x0dkZVRhcGJ5xhDC2b7TsJUrPcpQjwjMap/F9y717UmXxUFloHQ/jd/cEh31Vcfx2qhsz+4UaPwS5S6PXwGMITAB2WVz1Sp8nnc2DhbyQ/rWnW+AAflvS7/OgUR0nAZ5r2YfuiQXiTPuH+lZTrA3j16mliIM4IBW7qHibg4B+MCYjpSVyCQICcrqxK+cyRMqLOiGzj+kJblplwJnDI7eZIsadJTNeLtPS2vWeAuOHn9ZCUbycdB4jO3VHp0ImuMLsyNkwAn9ZaZ6ih/qrcwsSe+02Svu95J3WtoQEk0XZaWZTCgx/yqAHkuj root@obfs"
 tags = {
     Owner   = "pghaedi"
 }
+}
+
+resource "aws_cloudwatch_log_group" "datachef" {
+  name = "datachef"
+
+  tags = local.tags
 }
 
 resource "aws_iam_role" "sftp-logging" {
@@ -71,7 +72,7 @@ resource "aws_s3_bucket" "datachef" {
 resource "aws_transfer_ssh_key" "datachef" {
   server_id = aws_transfer_server.datachef.id
   user_name = aws_transfer_user.datachef.user_name
-  body      = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqkU+hdSPbod6Qs0uD3+fNzE8kUdQ8x0dkZVRhcGJ5xhDC2b7TsJUrPcpQjwjMap/F9y717UmXxUFloHQ/jd/cEh31Vcfx2qhsz+4UaPwS5S6PXwGMITAB2WVz1Sp8nnc2DhbyQ/rWnW+AAflvS7/OgUR0nAZ5r2YfuiQXiTPuH+lZTrA3j16mliIM4IBW7qHibg4B+MCYjpSVyCQICcrqxK+cyRMqLOiGzj+kJblplwJnDI7eZIsadJTNeLtPS2vWeAuOHn9ZCUbycdB4jO3VHp0ImuMLsyNkwAn9ZaZ6ih/qrcwsSe+02Svu95J3WtoQEk0XZaWZTCgx/yqAHkuj root@obfs"
+  body      = local.publickey
 }
 
 resource "aws_transfer_server" "datachef" {
